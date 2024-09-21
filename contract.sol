@@ -32,7 +32,8 @@ contract SepoliaGettingStartedFunctionsConsumer is
         "const baseUrl = args[0]"
         "const endPoint = args[1];"
         "const apiResponse = await Functions.makeHttpRequest({"
-        "url: `${baseUrl}/${endPoint}`"
+        "url: `${baseUrl}/${endPoint}`,"
+        "headers: {\"X-Wallet-Address\":args[2]},"
         "});"
         "if (apiResponse.error) {"
         "throw Error('Request failed');"
@@ -77,10 +78,6 @@ contract SepoliaGettingStartedFunctionsConsumer is
 
     function changeBaseUrl(string memory _url) external onlyOwner{
         baseUrl = _url;
-    }
-
-    function changeMode(uint8 newMode) external onlyOwner {
-        mode = newMode;
     }
 
     // modifier so that only verified contracts can access the DBs
@@ -131,6 +128,23 @@ contract SepoliaGettingStartedFunctionsConsumer is
         }
         require(delegate, "Unauthorized");
         _;
+    }
+
+    function sendGetRequest(string[] memory args)
+        internal
+        returns (bytes32 requestId)
+    {
+        FunctionsRequest.Request memory req;
+        req.initializeRequestForInlineJavaScript(source); // Initialize the request with JS code
+        req.setArgs(args); // Set the arguments for the request
+
+        // Send the request and store the request ID
+        return _sendRequest(
+            req.encodeCBOR(),
+            subscriptionId,
+            gasLimit,
+            donID
+        );
     }
 
     function sendPostRequest(string[] memory args)
@@ -259,6 +273,14 @@ contract SepoliaGettingStartedFunctionsConsumer is
         emit Stringified("createTable", args[2]);
         args[3] = addrToStr(msg.sender);
         return sendPostRequest(args);
+    }
+
+    function getAllRowsOfTable(address owner, string memory dbId, string memory tableId) external onlyDelegates(owner) returns (bytes32 requestId) {
+        string[] memory args = new string[](2);
+        args[0] = baseUrl;
+        args[1] = string.concat(dbId, string.concat("/", string.concat(tableId, "/data")));
+        args[2] = addrToStr(owner);
+        return sendGetRequest(args);
     }
 
     function insertSingleRow(
